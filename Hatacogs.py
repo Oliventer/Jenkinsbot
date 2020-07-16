@@ -7,7 +7,7 @@ MAXIM_ID = 261952785602314252
 
 
 def is_active(state):
-    return state.self_mute or state.afk or state.channel is None
+    return not (state.self_mute or state.afk or state.channel is None)
 
 
 class StepanTrolling(commands.Cog):
@@ -32,9 +32,9 @@ class StepanTrolling(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if is_active(before) and not is_active(after):
+        if not is_active(before) and is_active(after):
             self.active_since[member.id] = datetime.datetime.now()
-        elif not is_active(before) and is_active(after):
+        elif is_active(before) and not is_active(after):
             delta = datetime.datetime.now() - self.active_since[member.id]
             current_delta = self.storage.get(member.id)
             if current_delta is None:

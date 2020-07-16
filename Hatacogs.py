@@ -5,9 +5,6 @@ from typing import Optional
 
 MAXIM_ID = 261952785602314252
 
-# В когу передавать объект типа сторадж self.storage = Storage(). Если правильно реализовать
-# сторадж то можно будет делать вот так self.storage[member.id] += delta
-
 
 def is_active(state):
     return state.self_mute or state.afk or state.channel is None

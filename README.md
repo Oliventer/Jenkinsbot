@@ -1,0 +1,2 @@
+# Jenkinsbot
+Discord bot development. 

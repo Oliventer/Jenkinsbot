@@ -4,13 +4,14 @@ import discord
 from typing import Optional
 
 MAXIM_ID = 261952785602314252
+AFK_CHANNEL = 731691971906633798
 
 
 def is_active(state):
     return not (state.self_mute or state.afk or state.channel is None)
 
 
-class StepanTrolling(commands.Cog):
+class BotCogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.storage = {}
@@ -43,6 +44,14 @@ class StepanTrolling(commands.Cog):
 
             print(self.storage[member.id].total_seconds())
 
+    @commands.Cog.listener()
+    async def on_ready(self):
+        for guild in self.bot.guilds:
+            for channel in guild.voice_channels:
+                users = channel.members
+                for ids in range(len(users)):
+                    self.active_since[users[ids].id] = datetime.datetime.now()
+
 
 def setup(bot):
-    bot.add_cog(StepanTrolling(bot))
+    bot.add_cog(BotCogs(bot))

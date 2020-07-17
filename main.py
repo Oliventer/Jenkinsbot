@@ -1,6 +1,7 @@
 import discord
 import json
 from config import token
+import datetime
 from discord.ext import commands
 
 STEPAN_ID = 378318866524143627
@@ -8,11 +9,12 @@ GUILD_ID = 545315019982897162
 CHANNEL_ID = 719279953962598401
 
 
-class PahanBot(commands.Bot):
+class Bot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix='^')
-        self.load_extension("Hatacogs")
+        self.load_extension("cogs")
         self.token = token
+        self.active_since = {}
 
     def run(self):
         super().run(self.token, reconnect=True)
@@ -34,5 +36,7 @@ async def write(ctx, arg):
 
 
 if __name__ == '__main__':
-    pahan = PahanBot()
-    pahan.run()
+    bot = Bot()
+    bot.run()
+
+# NjAxMDUwNjk0NzIzNTY3NjE2.Xw-yRQ.uxVgua1113dFgUwZzdQeYQirguA

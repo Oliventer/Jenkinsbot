@@ -1,7 +1,6 @@
 import discord
 import json
 from config import token
-import datetime
 from discord.ext import commands
 
 STEPAN_ID = 378318866524143627
@@ -11,13 +10,11 @@ CHANNEL_ID = 719279953962598401
 
 class Bot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix='^')
+        super().__init__(command_prefix='$')
         self.load_extension("cogs")
-        self.token = token
-        self.active_since = {}
 
     def run(self):
-        super().run(self.token, reconnect=True)
+        super().run(token, reconnect=True)
 
     async def on_message(self, message):
         author = message.author
@@ -30,13 +27,6 @@ class Bot(commands.Bot):
             await channel.send(f'{author.mention}, кек.')
 
 
-"""@bot.command()
-async def write(ctx, arg):
-    await ctx.send(arg)"""
-
-
 if __name__ == '__main__':
     bot = Bot()
     bot.run()
-
-# NjAxMDUwNjk0NzIzNTY3NjE2.Xw-yRQ.uxVgua1113dFgUwZzdQeYQirguA

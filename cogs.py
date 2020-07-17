@@ -2,13 +2,10 @@ from discord.ext import commands
 import datetime
 import discord
 from typing import Optional
+import itertools
 
 MAXIM_ID = 261952785602314252
 AFK_CHANNEL = 731691971906633798
-
-
-def is_active(state):
-    return not (state.self_mute or state.afk or state.channel is None)
 
 
 class BotCogs(commands.Cog):
@@ -31,26 +28,34 @@ class BotCogs(commands.Cog):
             msg = f'Привет-привет-привет-привет-привет-привет-привет, {member.mention}.'
         await channel.send(msg)
 
+    @staticmethod
+    def is_active(state):
+        return not (state.self_mute or state.afk or state.channel is None)
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if not is_active(before) and is_active(after):
+        if not self.is_active(before) and self.is_active(after):
             self.active_since[member.id] = datetime.datetime.now()
-        elif is_active(before) and not is_active(after):
+        elif self.is_active(before) and not self.is_active(after):
             delta = datetime.datetime.now() - self.active_since[member.id]
-            current_delta = self.storage.get(member.id)
-            if current_delta is None:
-                self.storage[member.id] = datetime.timedelta()
-            self.storage[member.id] += delta
+            already_timed = self.storage.get(member.id, datetime.timedelta())
+            self.storage[member.id] = already_timed + delta
 
             print(self.storage[member.id].total_seconds())
 
     @commands.Cog.listener()
     async def on_ready(self):
-        for guild in self.bot.guilds:
-            for channel in guild.voice_channels:
-                users = channel.members
-                for ids in range(len(users)):
-                    self.active_since[users[ids].id] = datetime.datetime.now()
+        members = itertools.chain.from_iterable\
+        ([channel.members for channel in self.bot.get_all_channels() if isinstance(channel, discord.VoiceChannel)])
+        for member in members:
+            if self.is_active(member.voice):
+                self.active_since[member.id] = datetime.datetime.now()
+        print("Hello!")
+
+    @commands.command()
+    async def test(self, ctx):
+        print(1)
+        await ctx.send('test')
 
 
 def setup(bot):

@@ -11,7 +11,7 @@ CHANNEL_ID = 719279953962598401
 class Bot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix='$')
-        self.load_extension("cogs")
+        self.load_extension('time_counter')
 
     def run(self):
         super().run(token, reconnect=True)
@@ -25,6 +25,7 @@ class Bot(commands.Bot):
             await channel.send(f'прошу прощение за то что {author.mention} насрал здесь! извините.')
         elif channel.id == CHANNEL_ID:
             await channel.send(f'{author.mention}, кек.')
+        await self.process_commands(message)
 
 
 if __name__ == '__main__':

@@ -1,8 +1,10 @@
 from discord.ext import commands
-import datetime
+from datetime import datetime
 import discord
 from typing import Optional
 import itertools
+import os
+import json
 
 MAXIM_ID = 261952785602314252
 AFK_CHANNEL = 731691971906633798
@@ -11,7 +13,7 @@ AFK_CHANNEL = 731691971906633798
 class BotCogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.storage = {}
+        self.bot.storage = {}
         self.active_since = {}
 
     @commands.Cog.listener()
@@ -27,46 +29,73 @@ class BotCogs(commands.Cog):
 
     @staticmethod
     def is_active(state):
-        return not (state.self_mute or state.afk or state.channel is None)
+        if state is not None:
+            return not (state.self_mute or state.afk or state.channel is None)
 
     def get_voice_time(self, member):
-        delta = datetime.datetime.now() - self.active_since[member.id]
-        already_timed = self.storage.get(member.id, datetime.timedelta())
-        self.storage[member.id] = already_timed + delta
-
-        print(self.storage[member.id].total_seconds())
+        delta = datetime.now() - self.active_since[member.id]
+        already_timed = self.bot.storage.get(member.id, datetime.min)
+        self.bot.storage[member.id] = already_timed + delta
 
     def get_members(self):
         members = itertools.chain.from_iterable \
         ([channel.members for channel in self.bot.get_all_channels() if isinstance(channel, discord.VoiceChannel)])
         return members
 
+    def get_dict_members(self):
+        members = []
+        for guild in self.bot.guilds:
+            for member in self.bot.storage:
+                members.append(guild.get_member(member))
+        return members
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if not self.is_active(before) and self.is_active(after):
-            self.active_since[member.id] = datetime.datetime.now()
+            self.active_since[member.id] = datetime.now()
         elif self.is_active(before) and not self.is_active(after):
             self.get_voice_time(member)
 
+    def open_config(self):
+        with open('total_time.json', encoding='utf-8') as f:
+            cfg = json.load(f)
+            for key in cfg:
+                key = int(key)
+                time_obj = cfg[str(key)]
+                value = datetime.fromisoformat(time_obj)
+                self.bot.storage[key] = value
+
+            print(self.bot.storage)
+
     @commands.Cog.listener()
     async def on_ready(self):
+        if os.path.isfile('total_time.json'):
+            self.open_config()
         members = self.get_members()
         for member in members:
             if self.is_active(member.voice):
-                self.active_since[member.id] = datetime.datetime.now()
+                self.active_since[member.id] = datetime.now()
+                print(self.active_since[member.id].strftime("%H:%M:%S"))
+        self.get_dict_members()
         print("Hello!")
 
-    @commands.command()
-    async def ping(self, ctx):
-        write = []
-        members = self.get_members()
+    def cog_unload(self):
+        members = self.get_dict_members()
         for member in members:
             if self.is_active(member.voice):
                 self.get_voice_time(member)
-                self.active_since[member.id] = datetime.datetime.now()
-                write.append(f'{str(member)}: {self.storage[member.id]}')
-        for values in range(len(write)):
-            await ctx.send(write[values])
+
+    @commands.command()
+    async def ping(self, ctx):
+        write = ""
+        members = self.get_dict_members()
+        for member in members:
+            if self.is_active(member.voice):
+                self.get_voice_time(member)
+                self.active_since[member.id] = datetime.now()
+            write += f'{str(member)}: {self.bot.storage[member.id].strftime("%H:%M:%S")}\n'
+        embed_obj = discord.Embed(description=write, title="Список работяг:", colour=0x7FDBFF)
+        await ctx.send(embed=embed_obj)
 
 
 def setup(bot):

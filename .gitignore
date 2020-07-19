@@ -3,3 +3,4 @@ venv
 .idea
 config.py
 README.md
+total_time.json

@@ -45,8 +45,9 @@ class BotCogs(commands.Cog):
     def get_dict_members(self):
         members = []
         for guild in self.bot.guilds:
-            for member in self.bot.storage:
-                members.append(guild.get_member(member))
+            sorted_records = sorted(self.bot.storage.items(), key=lambda item: item[1], reverse=True)
+            for member in sorted_records:
+                members.append(guild.get_member(member[0]))
         return members
 
     @commands.Cog.listener()
@@ -76,7 +77,7 @@ class BotCogs(commands.Cog):
             if self.is_active(member.voice):
                 self.active_since[member.id] = datetime.now()
                 print(self.active_since[member.id].strftime("%H:%M:%S"))
-        self.get_dict_members()
+        # self.get_dict_members()
         print("Hello!")
 
     def cog_unload(self):
@@ -93,7 +94,7 @@ class BotCogs(commands.Cog):
             if self.is_active(member.voice):
                 self.get_voice_time(member)
                 self.active_since[member.id] = datetime.now()
-            write += f'{str(member)}: {self.bot.storage[member.id].strftime("%H:%M:%S")}\n'
+            write += f'\U0001f476 {str(member)}: {self.bot.storage[member.id].strftime("%H:%M:%S")}\n'
         embed_obj = discord.Embed(description=write, title="Список работяг:", colour=0x7FDBFF)
         await ctx.send(embed=embed_obj)
 

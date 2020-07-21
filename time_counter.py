@@ -5,9 +5,11 @@ from typing import Optional
 import itertools
 import os
 import json
+from main import STEPAN_ID
 
 MAXIM_ID = 261952785602314252
 AFK_CHANNEL = 731691971906633798
+MY_ID = 173139208532131841
 
 
 class BotCogs(commands.Cog):
@@ -15,6 +17,7 @@ class BotCogs(commands.Cog):
         self.bot = bot
         self.bot.storage = {}
         self.active_since = {}
+        self.emoji_storage = {}
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -50,6 +53,24 @@ class BotCogs(commands.Cog):
                 members.append(guild.get_member(member[0]))
         return members
 
+    @staticmethod
+    def empty_space_fill(count):
+        return "\u200B\t" * count
+
+    def get_emoji(self, members):
+        top = 0
+        for member in members:
+            top += 1
+            if member.id == MY_ID and top == 1:
+                self.emoji_storage[MY_ID] = '\U0001f4aa'
+            elif member.id != MY_ID and top == 1:
+                self.emoji_storage[member.id] = '\U0001f921'
+            else:
+                self.emoji_storage[member.id] = '\U0001f476'
+            if member.id == STEPAN_ID:
+                self.emoji_storage[member.id] = '\U0001f412'
+        print(self.emoji_storage)
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if not self.is_active(before) and self.is_active(after):
@@ -66,8 +87,6 @@ class BotCogs(commands.Cog):
                 value = datetime.fromisoformat(time_obj)
                 self.bot.storage[key] = value
 
-            print(self.bot.storage)
-
     @commands.Cog.listener()
     async def on_ready(self):
         if os.path.isfile('total_time.json'):
@@ -76,8 +95,6 @@ class BotCogs(commands.Cog):
         for member in members:
             if self.is_active(member.voice):
                 self.active_since[member.id] = datetime.now()
-                print(self.active_since[member.id].strftime("%H:%M:%S"))
-        # self.get_dict_members()
         print("Hello!")
 
     def cog_unload(self):
@@ -88,14 +105,16 @@ class BotCogs(commands.Cog):
 
     @commands.command()
     async def ping(self, ctx):
-        write = ""
         members = self.get_dict_members()
+        self.get_emoji(members)
+        embed_obj = discord.Embed(title="Список работяг:", colour=0x7FDBFF)
         for member in members:
             if self.is_active(member.voice):
                 self.get_voice_time(member)
                 self.active_since[member.id] = datetime.now()
-            write += f'\U0001f476 {str(member)}: {self.bot.storage[member.id].strftime("%H:%M:%S")}\n'
-        embed_obj = discord.Embed(description=write, title="Список работяг:", colour=0x7FDBFF)
+            embed_obj.add_field(name=f'{self.emoji_storage[member.id]}  **{member}**:',
+                                value=f'{self.empty_space_fill(8)}{self.bot.storage[member.id].strftime("%H:%M:%S")}',
+                                inline=False)
         await ctx.send(embed=embed_obj)
 
 

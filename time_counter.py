@@ -1,23 +1,44 @@
 from discord.ext import commands
-from datetime import datetime
 import discord
-from typing import Optional
-import itertools
+from itertools import chain
 import os
-import json
-from main import STEPAN_ID
+from const import SPECIAL_EMOJIS, MAXIM_ID, MY_ID, DEFAULT_EMOJI, SAVE_FILENAME
+from time_storage import TimeStorage
 
-MAXIM_ID = 261952785602314252
-AFK_CHANNEL = 731691971906633798
-MY_ID = 173139208532131841
+
+def tabulate(n):
+    return "\u200B\t" * n
+
+
+def get_special_emoji(member):
+    return SPECIAL_EMOJIS.get(member.id, DEFAULT_EMOJI)
+
+
+def prepare_emoji_list(members):
+    first, *rest = members
+    emoji_key = 'me_as_top_1' if first.id == MY_ID else 'not_me_as_top_1'
+    first_emoji = SPECIAL_EMOJIS[emoji_key]
+    rest_emojis = list(map(get_special_emoji, rest))
+    return [first_emoji, *rest_emojis]
+
+
+def format_time(time_delta):
+    total_seconds = int(time_delta.total_seconds())
+    hours, remainder = divmod(total_seconds, 60 * 60)
+    minutes, seconds = divmod(remainder, 60)
+    return f'{hours:02}:{minutes:02}:{seconds:02}'
 
 
 class BotCogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bot.storage = {}
-        self.active_since = {}
-        self.emoji_storage = {}
+        self.time_storage = self.create_time_storage_instance()
+
+    @staticmethod
+    def create_time_storage_instance():
+        if os.path.isfile(SAVE_FILENAME):
+            return TimeStorage.from_json(SAVE_FILENAME)
+        return TimeStorage(SAVE_FILENAME)
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
@@ -32,90 +53,41 @@ class BotCogs(commands.Cog):
 
     @staticmethod
     def is_active(state):
-        if state is not None:
-            return not (state.self_mute or state.afk or state.channel is None)
-
-    def get_voice_time(self, member):
-        delta = datetime.now() - self.active_since[member.id]
-        already_timed = self.bot.storage.get(member.id, datetime.min)
-        self.bot.storage[member.id] = already_timed + delta
-
-    def get_members(self):
-        members = itertools.chain.from_iterable \
-        ([channel.members for channel in self.bot.get_all_channels() if isinstance(channel, discord.VoiceChannel)])
-        return members
-
-    def get_dict_members(self):
-        members = []
-        for guild in self.bot.guilds:
-            sorted_records = sorted(self.bot.storage.items(), key=lambda item: item[1], reverse=True)
-            for member in sorted_records:
-                members.append(guild.get_member(member[0]))
-        return members
-
-    @staticmethod
-    def empty_space_fill(count):
-        return "\u200B\t" * count
-
-    def get_emoji(self, members):
-        top = 0
-        for member in members:
-            top += 1
-            if member.id == MY_ID and top == 1:
-                self.emoji_storage[MY_ID] = '\U0001f4aa'
-            elif member.id != MY_ID and top == 1:
-                self.emoji_storage[member.id] = '\U0001f921'
-            else:
-                self.emoji_storage[member.id] = '\U0001f476'
-            if member.id == STEPAN_ID:
-                self.emoji_storage[member.id] = '\U0001f412'
-        print(self.emoji_storage)
+        return not (state.self_mute or state.afk or state.channel is None)
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         if not self.is_active(before) and self.is_active(after):
-            self.active_since[member.id] = datetime.now()
+            self.time_storage.start_session(member.id)
         elif self.is_active(before) and not self.is_active(after):
-            self.get_voice_time(member)
-
-    def open_config(self):
-        with open('total_time.json', encoding='utf-8') as f:
-            cfg = json.load(f)
-            for key in cfg:
-                key = int(key)
-                time_obj = cfg[str(key)]
-                value = datetime.fromisoformat(time_obj)
-                self.bot.storage[key] = value
+            self.time_storage.end_session(member.id)
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if os.path.isfile('total_time.json'):
-            self.open_config()
-        members = self.get_members()
-        for member in members:
-            if self.is_active(member.voice):
-                self.active_since[member.id] = datetime.now()
+        voice_channels = chain.from_iterable(guild.voice_channels for guild in self.bot.guilds)
+        members = chain.from_iterable(vc.members for vc in voice_channels)
+        active_members = filter(lambda m: self.is_active(m.voice), members)
+        for member in active_members:
+            self.time_storage.start_session(member.id)
         print("Hello!")
 
     def cog_unload(self):
-        members = self.get_dict_members()
-        for member in members:
-            if self.is_active(member.voice):
-                self.get_voice_time(member)
+        self.time_storage.save()
 
     @commands.command()
     async def ping(self, ctx):
-        members = self.get_dict_members()
-        self.get_emoji(members)
-        embed_obj = discord.Embed(title="Список работяг:", colour=0x7FDBFF)
-        for member in members:
-            if self.is_active(member.voice):
-                self.get_voice_time(member)
-                self.active_since[member.id] = datetime.now()
-            embed_obj.add_field(name=f'{self.emoji_storage[member.id]}  **{member}**:',
-                                value=f'{self.empty_space_fill(8)}{self.bot.storage[member.id].strftime("%H:%M:%S")}',
-                                inline=False)
-        await ctx.send(embed=embed_obj)
+        members = list(map(ctx.guild.get_member, self.time_storage.get_top_member_ids(5)))
+        if not members:
+            await ctx.send('У тебя нет друзей :(, по крайней мере пока что.')
+            return
+        emojis = prepare_emoji_list(members)
+        embed = discord.Embed(title="Список работяг:", colour=0x7FDBFF)
+        for member, emoji in zip(members, emojis):
+            member_time = self.time_storage.total_time(member.id)
+            embed.add_field(name=f'{emoji} {member}:',
+                            value=f'{tabulate(8)}{format_time(member_time)}',
+                            inline=False)
+        await ctx.send(embed=embed)
 
 
 def setup(bot):

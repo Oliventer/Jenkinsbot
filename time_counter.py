@@ -1,9 +1,10 @@
-from discord.ext import commands
+from discord.ext import commands, tasks
 import discord
 from itertools import chain
 import os
 from const import SPECIAL_EMOJIS, MAXIM_ID, MY_ID, DEFAULT_EMOJI, SAVE_FILENAME
 from time_storage import TimeStorage
+from datetime import datetime
 
 
 def tabulate(n):
@@ -33,6 +34,7 @@ class BotCogs(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.time_storage = self.create_time_storage_instance()
+        self.daily_restart.start()
 
     @staticmethod
     def create_time_storage_instance():
@@ -62,16 +64,29 @@ class BotCogs(commands.Cog):
         elif self.is_active(before) and not self.is_active(after):
             self.time_storage.end_session(member.id)
 
-    @commands.Cog.listener()
-    async def on_ready(self):
+    def start_members_sessions(self):
         voice_channels = chain.from_iterable(guild.voice_channels for guild in self.bot.guilds)
         members = chain.from_iterable(vc.members for vc in voice_channels)
         active_members = filter(lambda m: self.is_active(m.voice), members)
         for member in active_members:
             self.time_storage.start_session(member.id)
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        self.start_members_sessions()
         print("Hello!")
 
+    @tasks.loop(hours=23 - datetime.now().hour, minutes=60 - datetime.now().minute, seconds=60 - datetime.now().second)
+    async def daily_restart(self):
+        if self.daily_restart.current_loop == 0:
+            self.daily_restart.change_interval(hours=24)
+            return
+        self.time_storage.wipe_storage()
+        self.start_members_sessions()
+        print(f'Wipe time: {datetime.now()}')
+
     def cog_unload(self):
+        self.daily_restart.cancel()
         self.time_storage.save()
 
     @commands.command()

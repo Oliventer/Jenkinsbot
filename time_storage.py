@@ -55,6 +55,11 @@ class TimeStorage:
         self.end_session(member_id)
         self.start_session(member_id)
 
+    def wipe_storage(self):
+        self.close_all_sessions()
+        for member_id in self._storage.copy().keys():
+            del self._storage[member_id]
+
     def close_all_sessions(self):
         for member_id in self._active_since.copy().keys():
             self.end_session(member_id)

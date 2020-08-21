@@ -23,7 +23,9 @@ class Bot(commands.Bot):
         await self.process_commands(message)
 
     async def close(self):
+        await bot.cogs['BotCogs'].time_storage.save()
         self.unload_extension('time_counter')
+        await super().close()
 
 
 if __name__ == '__main__':

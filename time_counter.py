@@ -2,9 +2,10 @@ from discord.ext import commands, tasks
 import discord
 from itertools import chain
 import os
-from const import SPECIAL_EMOJIS, MAXIM_ID, MY_ID, DEFAULT_EMOJI, SAVE_FILENAME
+from const import SPECIAL_EMOJIS, MY_ID, DEFAULT_EMOJI, SAVE_FILENAME
 from time_storage import TimeStorage
 from datetime import datetime
+import asyncio
 
 
 def tabulate(n):
@@ -39,7 +40,9 @@ class BotCogs(commands.Cog):
     @staticmethod
     def create_time_storage_instance():
         if os.path.isfile(SAVE_FILENAME):
-            return TimeStorage.from_json(SAVE_FILENAME)
+            loop = asyncio.get_event_loop()
+            result = loop.run_until_complete(TimeStorage.from_db(SAVE_FILENAME))
+            return result
         return TimeStorage(SAVE_FILENAME)
 
     @commands.Cog.listener()
@@ -47,8 +50,6 @@ class BotCogs(commands.Cog):
         channel = member.guild.system_channel
         if channel is None:
             return
-        if member.id == MAXIM_ID:
-            msg = f'{member.mention}, пошел нахуй с канала.'
         else:
             msg = f'Привет-привет-привет-привет-привет-привет-привет, {member.mention}.'
         await channel.send(msg)
@@ -87,7 +88,8 @@ class BotCogs(commands.Cog):
 
     def cog_unload(self):
         self.daily_restart.cancel()
-        self.time_storage.save()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.time_storage.save())
 
     @commands.command()
     async def ping(self, ctx):

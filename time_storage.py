@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import heapq
-import json
+import aiosqlite
 
 
 class SessionError(Exception):
@@ -22,16 +22,22 @@ class TimeStorage:
         self._storage = storage or {}
 
     @classmethod
-    def from_json(cls, filename):
-        with open(filename, encoding='utf-8') as f:
-            raw_data = json.load(f)
-        time_data = {int(k): timedelta(seconds=v) for k, v in raw_data.items()}
-        return cls(filename, time_data)
+    async def from_db(cls, filename):
+        async with aiosqlite.connect("total_time.db") as db:
+            async with db.execute("SELECT * FROM time") as cursor:
+                raw_data = await cursor.fetchall()
+                time_data = {int(k): timedelta(seconds=v) for k, v in raw_data}
+                return cls(filename, time_data)
 
-    def save(self):
-        self.close_all_sessions()
-        with open(self.filename, 'w', encoding='utf-8') as f:
-            json.dump(self._storage, f, indent=4, default=lambda t: int(t.total_seconds()))
+    async def save(self):
+        async with aiosqlite.connect("total_time.db") as db:
+            await db.execute("""CREATE TABLE IF NOT EXISTS time
+                                 (member_id integer UNIQUE, total_time integer)
+                                 """)
+            for member in self._storage.keys():
+                await db.execute("""INSERT OR REPLACE INTO time VALUES(?, ?) """,
+                                 (member, self._storage[member].total_seconds()))
+            await db.commit()
 
     def session_exist(self, member_id):
         return self._active_since.get(member_id) is not None

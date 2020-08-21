@@ -2,5 +2,4 @@ __pycache__
 venv
 .idea
 config.py
-README.md
-total_time.json
+total_time.db
